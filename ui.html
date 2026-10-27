@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PET/CT Viewer</title>
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0d1117; --panel:#141a22; --panel2:#19212b; --line:#27303c; --text:#e8ebf0; --muted:#9aa4b2; --faint:#6b7684;
+  --accent:#3987e5; --ok:#199e70; --warn:#d95926; --mask:#00e6ff;
+  --train:#3987e5; --val:#d95926; --test:#199e70;
+  --r:8px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,select,input{font:inherit;color:inherit}
+button,select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 9px;cursor:pointer}
+button:hover,select:hover{border-color:#3a4656}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+input[type=range]{accent-color:var(--accent);vertical-align:middle}
+input[type=text]{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 8px;width:100%}
+.mono{font-variant-numeric:tabular-nums}
+#app{display:grid;grid-template-columns:300px 1fr;grid-template-rows:44px 1fr;height:100%}
+header{grid-column:1/3;display:flex;align-items:center;gap:18px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:14px;margin:0;font-weight:650;letter-spacing:.2px}
+.tabs{display:flex;gap:2px}
+.tabs button{border:0;background:none;border-radius:6px;padding:6px 12px;color:var(--muted)}
+.tabs button.on{background:var(--panel2);color:var(--text)}
+#status{margin-left:auto;color:var(--muted);font-size:12px}
+aside{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.filters{padding:10px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{padding:3px 8px;font-size:12px}
+.lbl{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.6px}
+#list{overflow:auto;flex:1;min-height:0}
+.row{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid #1b222b;cursor:pointer}
+.row:hover{background:var(--panel2)}
+.row.sel{background:#1c2a3d;box-shadow:inset 3px 0 0 var(--accent)}
+.row .dot{width:8px;height:8px;border-radius:50%}
+.row .t{display:flex;flex-direction:column;min-width:0}
+.row .t small{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ml{color:var(--muted);font-size:12px;text-align:right}
+.row .ml i{display:block;font-style:normal;font-size:10px;color:var(--ok)}
+#count{padding:6px 10px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+main{min-width:0;min-height:0;position:relative}
+.tab{display:none;height:100%}
+.tab.on{display:flex;flex-direction:column}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+.toolbar .g{display:flex;align-items:center;gap:6px}
+.toolbar .g>span{color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.toolbar input[type=range]{width:90px}
+.infobar{padding:5px 12px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;display:flex;gap:18px;flex-wrap:wrap;min-height:28px}
+.infobar b{color:var(--text);font-weight:600}
+.work{flex:1;min-height:0;display:grid;grid-template-columns:1fr 270px}
+#grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:6px;padding:6px;min-height:0;min-width:0}
+#grid.cmp{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}
+.panel{background:#000;border:1px solid var(--line);border-radius:var(--r);display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.phead{display:flex;align-items:center;gap:8px;padding:3px 8px;background:var(--panel);font-size:12px;color:var(--muted)}
+.phead b{color:var(--text);font-weight:600}
+.phead input[type=range]{flex:1;min-width:30px}
+.pbody{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative;cursor:crosshair}
+.pbody canvas{display:block}
+.busy{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-size:12px}
+.pbody.loading .busy{display:flex}
+#side2{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:10px;display:flex;flex-direction:column;gap:12px;min-height:0}
+#side2 h3{margin:0 0 4px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px}
+.kv span:nth-child(odd){color:var(--muted)}
+.warn{color:#f0a070;font-size:12px}
+table.les{width:100%;border-collapse:collapse;font-size:12px}
+table.les th{color:var(--faint);font-weight:500;text-align:right;padding:2px 4px;position:sticky;top:0;background:var(--panel)}
+table.les td{padding:3px 4px;text-align:right;border-top:1px solid #1b222b}
+table.les tr{cursor:pointer}
+table.les tr:hover td,table.les tr.sel td{background:var(--panel2)}
+table.les th:first-child,table.les td:first-child{text-align:left}
+.keys{font-size:11px;color:var(--muted);line-height:1.7}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,12,.7);display:none;align-items:center;justify-content:center;z-index:50;font-size:14px}
+#overlay.on{display:flex}
+#overlay div{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:18px 26px;text-align:center}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#3a1d1d;border:1px solid #7a3030;padding:8px 14px;border-radius:8px;display:none;z-index:60;max-width:70vw}
+/* gallery */
+.gwrap{flex:1;overflow:auto;padding:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;align-content:start}
+.tile{background:#000;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.tile:hover{border-color:var(--accent)}
+.tile.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.tile .cap{padding:3px 8px;font-size:12px;background:var(--panel);display:flex;justify-content:space-between;color:var(--muted)}
+.tile .cap b{color:var(--text);font-weight:600}
+.tile .im{position:relative;overflow:hidden;width:100%}
+.tile img{position:absolute;display:block;object-fit:fill}
+.tile .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:12px;text-align:center;padding:8px}
+/* overview */
+.over{flex:1;overflow:auto;padding:14px 16px 30px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+.kpi small{color:var(--muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.kpi b{font-size:22px;font-weight:650}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;min-width:0}
+.card h2{margin:0;font-size:14px;font-weight:650}
+.card p{margin:2px 0 8px;color:var(--muted);font-size:12px}
+.card .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:2px 0 6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+svg text{fill:var(--muted);font-size:11px}
+svg .grid{stroke:#222b36;stroke-width:1}
+#tip{position:fixed;pointer-events:none;background:#0a0e13;border:1px solid #33404f;border-radius:6px;padding:5px 9px;font-size:12px;display:none;z-index:70;white-space:nowrap}
+table.dt{width:100%;border-collapse:collapse;font-size:12px}
+table.dt td,table.dt th{padding:3px 6px;border-top:1px solid #1b222b;text-align:right}
+table.dt th:first-child,table.dt td:first-child{text-align:left}
+@media (max-width:1200px){.work{grid-template-columns:1fr}#side2{display:none}.gwrap{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>PET/CT Viewer</h1>
+  <div class="tabs">
+    <button data-tab="viewer" class="on">Viewer</button>
+    <button data-tab="pert">Perturbations</button>
+    <button data-tab="over">Dataset overview</button>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button id="bFolder" class="on" title="Choose a folder; it is scanned for PET/CT studies">Open folder…</button>
+    <button id="bFiles" title="Choose individual NIfTI files (PET, CT and optionally the mask)">Choose files…</button>
+  </div>
+  <div id="status"></div>
+</header>
+
+<aside>
+  <div class="filters">
+    <div id="splitBox"><div class="lbl">Split</div><div class="seg" id="fSplit"></div></div>
+    <div><div class="lbl">Lesion mask</div><div class="seg" id="fLes"></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div id="dxBox"><div class="lbl">Diagnosis</div><select id="fDx" style="width:100%"></select></div>
+      <div><div class="lbl">Sort</div><select id="fSort" style="width:100%">
+        <option value="pid">Patient ID</option>
+        <option value="ml">Lesion volume ↓</option><option value="mlu">Lesion volume ↑</option>
+        <option value="nz">Scan length ↓</option></select></div>
+    </div>
+    <input type="text" id="fQ" placeholder="Search patient / study…">
+  </div>
+  <div id="list"></div>
+  <div id="count"></div>
+  <div id="idxbar" style="display:none;padding:6px 10px;color:var(--muted);font-size:11px;border-top:1px solid var(--line)"></div>
+</aside>
+
+<main>
+  <!-- ===================== VIEWER ===================== -->
+  <section class="tab on" id="tab-viewer">
+    <div class="toolbar">
+      <div class="g"><span>View</span><div class="seg" id="tView"></div></div>
+      <div class="g"><span>PET</span>
+        <select id="tCmap"><option value="magma">magma</option><option value="hot">hot</option><option value="gray_r">inverted gray</option><option value="viridis">viridis</option></select>
+        <input type="range" id="tPhi" min="1" max="30" step="0.5" value="8"><span class="mono" id="vPhi" style="min-width:56px;text-transform:none">max 8</span></div>
+      <div class="g"><span>CT</span>
+        <select id="tCt"><option value="-100,250">Model input (−100…250)</option><option value="-160,240">Soft tissue</option><option value="-1350,150">Lung</option><option value="-500,1300">Bone</option><option value="-1000,1000">Wide</option></select></div>
+      <div class="g"><span>Zoom</span><input type="range" id="tZoom" min="1" max="4" step="0.25" value="1"><span class="mono" id="vZoom" style="text-transform:none;min-width:28px">1×</span></div>
+      <div class="g"><span>Fusion</span><input type="range" id="tAlpha" min="0" max="1" step="0.05" value="0.6"></div>
+      <div class="g"><span>Mask</span><div class="seg" id="tMask"></div></div>
+      <div class="g"><span>Condition</span><select id="tCond"></select>
+        <button id="tCompare" title="Show clean / condition / difference side by side (x)">Compare</button></div>
+      <div class="g" id="gDiff" style="display:none"><span>Diff range</span><input type="range" id="tDlim" min="0.01" max="0.5" step="0.01" value="0.1"><span class="mono" id="vDlim" style="text-transform:none">±0.10</span></div>
+      <div class="g"><label title="Clip to the range the model sees (PET 0–20 SUV, CT −100…250 HU)"><input type="checkbox" id="tClip"> Model range</label>
+        <label title="Show patient left on the left of the screen"><input type="checkbox" id="tFlip"> Flip L/R</label></div>
+    </div>
+    <div class="infobar" id="info"></div>
+    <div class="work">
+      <div id="grid"></div>
+      <div id="side2">
+        <div><h3>Study</h3><div class="kv" id="kv"></div><div class="warn" id="warns"></div></div>
+        <div><h3>Lesions (connected components)</h3><div id="lesSum" style="color:var(--muted);font-size:12px;margin-bottom:4px"></div>
+          <div style="max-height:34vh;overflow:auto"><table class="les" id="les"></table></div></div>
+        <div><h3>Keys</h3><div class="keys">
+          <kbd>wheel</kbd> scroll slice (<kbd>shift</kbd> ×10) · <kbd>click/drag</kbd> move crosshair<br>
+          <kbd>↑</kbd><kbd>↓</kbd> axial slice · <kbd>[</kbd><kbd>]</kbd> prev/next study<br>
+          <kbd>n</kbd><kbd>p</kbd> next/prev lesion · <kbd>m</kbd> mask · <kbd>f</kbd> view<br>
+          <kbd>c</kbd> next condition · <kbd>x</kbd> compare · <kbd>l</kbd> flip L/R</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PERTURBATIONS ===================== -->
+  <section class="tab" id="tab-pert">
+    <div class="toolbar">
+      <div class="g"><span>Channel</span><div class="seg" id="gCh"></div></div>
+      <div class="g"><span>Plane</span><div class="seg" id="gPl"></div></div>
+      <div class="g"><span>Slice</span><input type="range" id="gSlice" min="0" max="100" value="0" style="width:200px"><span class="mono" id="gSliceV"></span></div>
+      <div class="g"><span>Zoom</span><input type="range" id="gZoom" min="1" max="4" step="0.25" value="1"><span class="mono" id="gZoomV" style="text-transform:none;min-width:28px">1×</span></div>
+      <div class="g"><button id="gAll">Compute all 15 conditions for this study</button><span id="gProg" style="text-transform:none;color:var(--muted)"></span></div>
+    </div>
+    <div class="infobar" id="gInfo">All tiles show the same slice, windows and mask outline. Click a tile to inspect that condition in the Viewer. Perturbations come from perturb.py with the evaluation seeds; they are shown in the model-input range.</div>
+    <div class="gwrap" id="gal"></div>
+  </section>
+
+  <!-- ===================== OVERVIEW ===================== -->
+  <section class="tab" id="tab-over">
+    <div class="over" id="over"></div>
+  </section>
+</main>
+</div>
+
+<div id="overlay"><div id="ovMsg">Working…</div></div>
+<div id="toast"></div>
+<div id="tip"></div>
+
+<script>
+"use strict";
+/* ============================== state ============================== */
+const $ = (s, r=document) => r.querySelector(s);
+const el = (t, a={}, h="") => { const e=document.createElement(t); for(const k in a) e.setAttribute(k,a[k]); e.innerHTML=h; return e; };
+const SPLIT_COL = {train:"var(--train)", val:"var(--val)", test:"var(--test)", none:"#666"};
+const S = {
+  cases:[], conds:[], i:null, row:null, meta:null, x:0, y:0, z:0, tab:"viewer", gen:0, hasSplits:false, hasDx:false, torch:true,
+  view:"fused", cmap:"magma", phi:8, clo:-100, chi:250, alpha:0.6, mask:"outline",
+  cond:"clean", cached:["clean"], clip:false, flip:false, compare:false, dlim:0.1,
+  zoom:1, cen:{x:0,y:0,z:0}, gch:"pet", gpl:"ax", list:[], lesions:[], lesSel:-1,
+  f:{split:new Set(["train","val","test","none"]), les:"any", dx:"all", q:"", sort:"pid"},
+};
+function store(k,v){ try{ localStorage.setItem("apv."+k, JSON.stringify(v)); }catch(e){} }
+function load(k,d){ try{ const v=localStorage.getItem("apv."+k); return v===null?d:JSON.parse(v); }catch(e){ return d; } }
+const fmtMl = v => v===null||v===undefined ? "—" : v.toFixed(1)+" mL";
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none",6000); }
+function busy(msg){ $("#ovMsg").textContent=msg; $("#overlay").classList.add("on"); }
+function unbusy(){ $("#overlay").classList.remove("on"); }
+async function api(path){
+  const r = await fetch(path);
+  const j = await r.json().catch(()=>({error:"bad response"}));
+  if(!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+/* ============================== geometry ============================== */
+function shape(){ return S.meta.shape; }
+function spacing(){ return S.meta.spacing; }
+function dimsOf(pl){ const [X,Y,Z]=shape(); return pl==="ax"?[X,Y]: (pl==="co"||pl==="mipco")?[X,Z]:[Y,Z]; }
+function physOf(pl){ const [X,Y,Z]=shape(), [a,b,c]=spacing(); return pl==="ax"?[X*a,Y*b]:(pl==="co"||pl==="mipco")?[X*a,Z*c]:[Y*b,Z*c]; }
+function idxOf(pl){ return pl==="ax"?S.z : pl==="co"?S.y : pl==="sa"?S.x : 0; }
+function setIdx(pl,v){
+  const [X,Y,Z]=shape();
+  if(pl==="ax") S.z=clamp(v,0,Z-1); else if(pl==="co"||pl==="mipco") S.y=clamp(v,0,Y-1); else S.x=clamp(v,0,X-1);
+}
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+// voxel -> pixel (col,row) in the displayed image (radiological: patient right on screen left)
+function toPix(pl,pt=S){
+  const [X,Y,Z]=shape();
+  if(pl==="ax") return [S.flip?pt.x:X-1-pt.x, Y-1-pt.y];
+  if(pl==="co"||pl==="mipco") return [S.flip?pt.x:X-1-pt.x, Z-1-pt.z];
+  return [S.flip?pt.y:Y-1-pt.y, Z-1-pt.z];
+}
+function recentre(){ S.cen={x:S.x,y:S.y,z:S.z}; }
+function syncZoom(){ ["#tZoom","#gZoom"].forEach(id=>$(id).value=S.zoom); ["#vZoom","#gZoomV"].forEach(id=>$(id).textContent=S.zoom+"×"); }
+function fromPix(pl,c,r){
+  const [X,Y,Z]=shape();
+  if(pl==="ax") return {x:S.flip?c:X-1-c, y:Y-1-r};
+  if(pl==="co"||pl==="mipco") return {x:S.flip?c:X-1-c, z:Z-1-r};
+  return {y:S.flip?c:Y-1-c, z:Z-1-r};
+}
+const SIDE_LABELS = {
+  ax:["R","L","A","P"], co:["R","L","S","I"], mipco:["R","L","S","I"], sa:["A","P","S","I"], mipsa:["A","P","S","I"]
+};
+
+/* ============================== panels ============================== */
+let panels = [];
+const TITLES = {ax:"Axial", co:"Coronal", sa:"Sagittal", mipco:"PET MIP (coronal)"};
+function panelSpecs(){
+  if(S.compare){
+    const c = S.cond==="clean" ? "clean" : S.cond;
+    return [
+      {plane:"ax",cond:"clean",view:"pet",title:"PET · clean"},
+      {plane:"ax",cond:c,view:"pet",title:"PET · "+c},
+      {plane:"ax",cond:c,view:"diff",ch:"pet",title:"PET · change"},
+      {plane:"ax",cond:"clean",view:"ct",title:"CT · clean"},
+      {plane:"ax",cond:c,view:"ct",title:"CT · "+c},
+      {plane:"ax",cond:c,view:"diff",ch:"ct",title:"CT · change"},
+    ];
+  }
+  return [
+    {plane:"ax",cond:S.cond,view:S.view,title:"Axial"},
+    {plane:"co",cond:S.cond,view:S.view,title:"Coronal"},
+    {plane:"sa",cond:S.cond,view:S.view,title:"Sagittal"},
+    {plane:"mipco",cond:S.cond,view:"pet",title:"PET MIP (coronal)"},
+  ];
+}
+function buildPanels(){
+  const g = $("#grid"); g.innerHTML=""; g.classList.toggle("cmp", S.compare);
+  panels = panelSpecs().map(sp=>{
+    const p = {...sp, url:"", img:null, tok:0};
+    p.root = el("div",{class:"panel"});
+    p.head = el("div",{class:"phead"});
+    p.ttl = el("span",{},`<b>${sp.title}</b>`);
+    p.pos = el("span",{class:"mono"});
+    p.head.append(p.ttl, p.pos);
+    if(!S.compare && sp.plane!=="mipco"){
+      p.slider = el("input",{type:"range",min:0,max:1,value:0});
+      p.slider.addEventListener("input",()=>{ setIdx(p.plane,+p.slider.value); update(); });
+      p.head.append(p.slider);
+    }
+    p.body = el("div",{class:"pbody"});
+    p.canvas = el("canvas");
+    p.busy = el("div",{class:"busy"},"loading…");
+    p.body.append(p.canvas,p.busy);
+    p.root.append(p.head,p.body);
+    g.append(p.root);
+    bindPanel(p);
+    new ResizeObserver(()=>draw(p)).observe(p.body);
+    return p;
+  });
+  if(S.meta){ panels.forEach(p=>{ if(p.slider){ const d=dimsOf(p.plane); const [X,Y,Z]=shape(); p.slider.max=(p.plane==="ax"?Z:p.plane==="co"?Y:X)-1; } }); }
+}
+function bindPanel(p){
+  let down=false;
+  const pick=ev=>{
+    if(!S.meta) return;
+    const r=p.canvas.getBoundingClientRect();
+    const [cols,rows]=dimsOf(p.plane);
+    const v=p.vr||{sx:0,sy:0,sw:cols,sh:rows};
+    const c=clamp(Math.floor(v.sx+(ev.clientX-r.left)/r.width*v.sw),0,cols-1);
+    const rr=clamp(Math.floor(v.sy+(ev.clientY-r.top)/r.height*v.sh),0,rows-1);
+    Object.assign(S, fromPix(p.plane,c,rr));
+    S.lesSel=-1; update();
+  };
+  p.body.addEventListener("mousedown",ev=>{ down=true; pick(ev); });
+  window.addEventListener("mouseup",()=>down=false);
+  p.body.addEventListener("mousemove",ev=>{ if(down) pick(ev); });
+  p.body.addEventListener("wheel",ev=>{
+    ev.preventDefault();
+    const step=(ev.deltaY>0?1:-1)*(ev.shiftKey?10:1);
+    setIdx(S.compare?"ax":(p.plane==="mipco"?"co":p.plane), idxOf(S.compare?"ax":(p.plane==="mipco"?"co":p.plane))+step);
+    update();
+  },{passive:false});
+}
+
+function slicesUrl(p){
+  const q = new URLSearchParams({i:S.i, plane:p.plane, idx:idxOf(p.plane), cond:p.cond, view:p.view, cmap:S.cmap,
+    phi:S.phi, clo:S.clo, chi:S.chi, alpha:S.alpha, mask:S.mask, clip:(S.clip||S.compare)?1:0,
+    flip:S.flip?1:0, ch:p.ch||"pet", dlim:S.dlim, g:S.gen});
+  if(p.plane==="mipco"||p.plane==="mipsa"){ q.set("idx",0); }
+  return "/slice?"+q.toString();
+}
+let raf=0;
+function update(){ if(!raf) raf=requestAnimationFrame(()=>{ raf=0; refresh(); }); }
+function refresh(){
+  if(!S.meta) return;
+  panels.forEach(p=>{
+    const u = slicesUrl(p);
+    if(u!==p.url){
+      p.url=u; const tok=++p.tok; p.body.classList.add("loading");
+      const im=new Image();
+      im.onload=()=>{ if(tok!==p.tok) return; p.img=im; p.body.classList.remove("loading"); draw(p); };
+      im.onerror=()=>{ if(tok!==p.tok) return; p.body.classList.remove("loading"); toast("Could not render slice (see the terminal running the viewer)."); };
+      im.src=u;
+    } else draw(p);
+    const [Xn,Yn,Zn]=shape();
+    if(p.slider){ const v=idxOf(p.plane); p.slider.value=v; }
+    const n = p.plane==="ax"?Zn:p.plane==="co"?Yn:p.plane==="sa"?Xn:0;
+    p.pos.textContent = p.plane.startsWith("mip")?"": `${idxOf(p.plane)+1}/${n}`;
+  });
+  infoBar(); probeSoon();
+  $("#vPhi").textContent="max "+S.phi;
+  if(S.tab==="pert") galleryUpdate();
+}
+function draw(p){
+  if(!p.img || !S.meta) return;
+  const bw=p.body.clientWidth, bh=p.body.clientHeight; if(bw<10||bh<10) return;
+  const [pw,ph]=physOf(p.plane), ar=pw/ph;
+  let w=bw, h=bw/ar; if(h>bh){ h=bh; w=bh*ar; }
+  w=Math.floor(w); h=Math.floor(h);
+  const dpr=window.devicePixelRatio||1, cv=p.canvas;
+  cv.style.width=w+"px"; cv.style.height=h+"px";
+  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+  const ctx=cv.getContext("2d");
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+  const [cols,rows]=dimsOf(p.plane), [c,r]=toPix(p.plane);
+  const sw=cols/S.zoom, sh=rows/S.zoom, [cc,cr]=toPix(p.plane,S.cen);
+  const sx=clamp(cc+0.5-sw/2,0,cols-sw), sy=clamp(cr+0.5-sh/2,0,rows-sh);
+  p.vr={sx,sy,sw,sh};
+  ctx.drawImage(p.img,sx,sy,sw,sh,0,0,cv.width,cv.height);
+  // crosshair
+  const cx=((c+0.5)-sx)/sw*cv.width, cy=((r+0.5)-sy)/sh*cv.height;
+  ctx.lineWidth=Math.max(1,dpr); ctx.strokeStyle="rgba(255,225,80,.75)";
+  ctx.setLineDash([6*dpr,4*dpr]);
+  ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,cv.height); ctx.moveTo(0,cy); ctx.lineTo(cv.width,cy); ctx.stroke();
+  ctx.setLineDash([]);
+  // orientation letters
+  let [L,R,T,B]=SIDE_LABELS[p.plane]; if(S.flip && !(p.plane==="sa"||p.plane==="mipsa")){ [L,R]=[R,L]; }
+  ctx.fillStyle="rgba(255,255,255,.7)"; ctx.font=`${12*dpr}px system-ui`; ctx.textBaseline="middle"; ctx.textAlign="left";
+  ctx.fillText(L,6*dpr,cv.height/2); ctx.textAlign="right"; ctx.fillText(R,cv.width-6*dpr,cv.height/2);
+  ctx.textAlign="center"; ctx.fillText(T,cv.width/2,10*dpr); ctx.fillText(B,cv.width/2,cv.height-10*dpr);
+}
+
+/* ============================== info + probe ============================== */
+let probeTimer=0, probeSeq=0;
+function infoBar(){
+  const r=S.row; if(!r) return;
+  $("#info").innerHTML = `<span><b>${r.patient_id}</b>${r.study?" · "+r.study:""}${S.hasDx?" · "+r.diagnosis:""}${S.hasSplits?" · "+r.split:""} · ${fmtMl(r.lesion_ml)} lesion</span>
+    <span class="mono">voxel <b>${S.x}, ${S.y}, ${S.z}</b></span><span id="pv" class="mono"></span>`;
+}
+function probeSoon(){
+  clearTimeout(probeTimer);
+  probeTimer=setTimeout(async()=>{
+    const my=++probeSeq;
+    try{
+      const j=await api(`/probe?i=${S.i}&x=${S.x}&y=${S.y}&z=${S.z}&cond=${encodeURIComponent(S.cond)}`);
+      if(my!==probeSeq) return;
+      const pv=$("#pv"); if(!pv) return;
+      let t=`SUV <b>${j.suv}</b> · HU <b>${j.hu}</b> · ${j.lesion?'<b style="color:var(--mask)">lesion</b>':'no lesion'}`;
+      if(j.suv_cond!==undefined) t+=` · ${S.cond}: SUV <b>${j.suv_cond}</b> · HU <b>${j.hu_cond}</b>`;
+      pv.innerHTML=t;
+    }catch(e){}
+  },90);
+}
+
+/* ============================== study loading ============================== */
+async function openCase(i){
+  S.i=i; S.row=S.cases[i]; store("last:"+S.root,i);
+  busy("Opening study… (first time: decoding the NIfTI files, about 5–15 s; afterwards instant)");
+  try{
+    const m=await api("/api/open?i="+i);
+    if(S.i!==i) return;
+    S.meta=m; S.cached=m.cached_conds;
+    [S.x,S.y,S.z]=m.focus; S.lesSel=-1; recentre();
+    if(!S.cached.includes(S.cond)){ S.cond="clean"; $("#tCond").value="clean"; }
+    const c=S.cases[i]; c.cached=true; c.nz=m.shape[2]; c.lesion_voxels=m.mask_voxels;
+    c.lesion_ml=Math.round(m.mask_voxels*m.spacing[0]*m.spacing[1]*m.spacing[2]/10)/100;
+    buildPanels(); studyPanel(); fillCondSelect(); update(); renderList();
+    $("#gSlice").max=shape()[2]-1;
+    api("/api/lesions?i="+i).then(j=>{ if(S.i!==i) return; S.lesions=j; lesionPanel(j); }).catch(e=>toast(e.message));
+  }catch(e){ toast("Could not open this study: "+e.message); }
+  unbusy();
+}
+function studyPanel(){
+  const r=S.row, m=S.meta, [X,Y,Z]=m.shape, sp=m.spacing;
+  $("#kv").innerHTML = `<span>Patient</span><span class="mono">${r.patient_id}</span>
+    ${r.study?`<span>Study</span><span style="word-break:break-all">${r.study}</span>`:""}
+    ${r.tracer?`<span>Tracer</span><span>${r.tracer.toUpperCase()}</span>`:""}
+    ${S.hasDx?`<span>Diagnosis</span><span>${r.diagnosis}</span>`:""}${S.hasSplits?`<span>Split</span><span>${r.split}</span>`:""}
+    <span>Studies of patient</span><span>${r.studies_for_patient}</span>
+    <span>Volume</span><span class="mono">${X}×${Y}×${Z}</span>
+    <span>Voxel (mm)</span><span class="mono">${sp.map(v=>v.toFixed(2)).join(" × ")}</span>
+    <span>Orientation</span><span>${m.orientation} → RAS</span>
+    <span>PET max</span><span class="mono">SUV ${m.pet_max.toFixed(1)}</span>
+    <span>CT range</span><span class="mono">${m.ct_min}…${m.ct_max} HU</span>`;
+  $("#warns").innerHTML = m.warnings.map(w=>"⚠ "+w).join("<br>");
+}
+function lesionPanel(j){
+  $("#lesSum").textContent = j.count? `${j.count} lesion${j.count>1?"s":""} · ${j.total_ml} mL total` + (j.count>j.lesions.length?` (top ${j.lesions.length} listed)`:"") : "No lesion voxels in the mask.";
+  $("#les").innerHTML = j.count? `<tr><th>#</th><th>mL</th><th>SUVmax</th><th>mean</th></tr>` +
+    j.lesions.map((l,k)=>`<tr data-k="${k}" class="${k===S.lesSel?'sel':''}"><td>${l.id}</td><td>${l.ml}</td><td>${l.suv_max}</td><td>${l.suv_mean}</td></tr>`).join("") : "";
+  $("#les").querySelectorAll("tr[data-k]").forEach(tr=>tr.onclick=()=>gotoLesion(+tr.dataset.k));
+}
+function gotoLesion(k){
+  const L=S.lesions.lesions; if(!L||!L.length) return;
+  k=(k+L.length)%L.length; S.lesSel=k; [S.x,S.y,S.z]=L[k].peak; recentre(); update(); lesionPanel(S.lesions);
+  const tr=$(`#les tr[data-k="${k}"]`); if(tr) tr.scrollIntoView({block:"nearest"});
+}
+
+/* ============================== conditions ============================== */
+function fillCondSelect(){
+  const sel=$("#tCond"); sel.innerHTML="";
+  S.conds.forEach(c=>{ const o=el("option",{value:c.name},c.name + (S.cached.includes(c.name)?"":"  (compute)")); sel.append(o); });
+  sel.value=S.cond;
+}
+async function setCond(name){
+  if(!S.cached.includes(name)){
+    busy(`Computing ${name} with src/perturb.py (first time for this study, roughly 5–20 s)…`);
+    try{ const j=await api(`/api/cond?i=${S.i}&name=${encodeURIComponent(name)}`); S.cached=j.cached_conds; }
+    catch(e){ toast("Could not compute: "+e.message); unbusy(); fillCondSelect(); return; }
+    unbusy();
+  }
+  S.cond=name; fillCondSelect();
+  if(name==="clean" && S.compare) toggleCompare(false);
+  buildPanels(); update();
+}
+function toggleCompare(on){
+  S.compare = on===undefined ? !S.compare : on;
+  $("#tCompare").classList.toggle("on",S.compare);
+  $("#gDiff").style.display = S.compare?"flex":"none";
+  if(S.compare && S.cond==="clean"){ const nxt=S.conds.find(c=>c.name!=="clean"); setCond(nxt.name); return; }
+  buildPanels(); update();
+}
+
+/* ============================== case list ============================== */
+function applyFilter(){
+  const f=S.f, q=f.q.trim().toLowerCase();
+  let L=S.cases.filter(c=>(!S.hasSplits||f.split.has(c.split)) && (f.dx==="all"||c.diagnosis===f.dx) &&
+    (f.les==="any"|| (f.les==="with"? c.lesion_voxels>0 : c.lesion_voxels===0)) &&
+    (!q || c.patient_id.toLowerCase().includes(q) || c.study.toLowerCase().includes(q) || c.tracer.includes(q)));
+  const n=v=>v===null||v===undefined?-1:v;
+  const key={ml:(a,b)=>n(b.lesion_ml)-n(a.lesion_ml), mlu:(a,b)=>n(a.lesion_ml)-n(b.lesion_ml),
+             pid:(a,b)=>a.i-b.i, nz:(a,b)=>n(b.nz)-n(a.nz)}[f.sort];
+  L.sort(key); S.list=L; return L;
+}
+function renderList(){
+  const L=applyFilter(), box=$("#list"), keep=box.scrollTop; const frag=document.createDocumentFragment();
+  L.forEach(c=>{
+    const d=el("div",{class:"row"+(c.i===S.i?" sel":""),"data-i":c.i});
+    const sub=[c.tracer?c.tracer.toUpperCase():"", S.hasDx?c.diagnosis:"", c.nz===null?"":c.nz+" slices"].filter(Boolean).join(" · ") || c.study;
+    d.innerHTML=`<span class="dot" style="background:${S.hasSplits?SPLIT_COL[c.split]:"#4b5563"}"></span>
+      <span class="t"><b class="mono">${c.patient_id}${c.studies_for_patient>1?" ×"+c.studies_for_patient:""}</b><small>${sub}</small></span>
+      <span class="ml mono">${fmtMl(c.lesion_ml)}${c.cached?"<i>cached</i>":""}</span>`;
+    frag.append(d);
+  });
+  box.innerHTML=""; box.append(frag); box.scrollTop=keep;
+  $("#count").textContent=S.cases.length? `${L.length.toLocaleString()} of ${S.cases.length.toLocaleString()} studies` : "No studies loaded: use “Open folder…” or “Choose files…” above.";
+}
+function stepCase(d){
+  const L=S.list; if(!L.length) return; let k=L.findIndex(c=>c.i===S.i); k=clamp((k<0?0:k)+d,0,L.length-1); openCase(L[k].i);
+  setTimeout(()=>{ const r=$(`#list .row[data-i="${L[k].i}"]`); if(r) r.scrollIntoView({block:"nearest"}); },50);
+}
+function buildFilters(){
+  // split buttons only exist when the data came with a split (splits.json); diagnosis only with metadata
+  const names=["train","val","test","none"].filter(s=>S.cases.some(c=>c.split===s));
+  S.hasSplits = names.some(s=>s!=="none");
+  S.hasDx = S.cases.some(c=>c.diagnosis!=="n/a");
+  S.f.split=new Set(names);
+  $("#splitBox").style.display=S.hasSplits?"":"none";
+  $("#dxBox").style.visibility=S.hasDx?"visible":"hidden";
+  const sp=$("#fSplit"); sp.innerHTML="";
+  names.forEach(s=>{
+    const b=el("button",{},`<span style="color:${SPLIT_COL[s]}">●</span> ${s}`); b.dataset.s=s;
+    b.classList.add("on");
+    b.onclick=()=>{ S.f.split.has(s)?S.f.split.delete(s):S.f.split.add(s); b.classList.toggle("on",S.f.split.has(s)); renderList(); };
+    sp.append(b);
+  });
+  const les=$("#fLes"); les.innerHTML="";
+  [["any","any"],["with","with lesion"],["none","lesion-free"]].forEach(([v,t])=>{
+    const b=el("button",{},t); b.dataset.v=v; b.classList.toggle("on",S.f.les===v);
+    b.onclick=()=>{ S.f.les=v; les.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===v)); store("f",fSer()); renderList(); };
+    les.append(b);
+  });
+  const dx=$("#fDx"); dx.innerHTML="";
+  ["all",...[...new Set(S.cases.map(c=>c.diagnosis))].sort()].forEach(v=>dx.append(el("option",{value:v},v==="all"?"all diagnoses":v)));
+  if(![...dx.options].some(o=>o.value===S.f.dx)) S.f.dx="all";
+  dx.value=S.f.dx; dx.onchange=()=>{ S.f.dx=dx.value; renderList(); };
+  $("#fSort").value=S.f.sort; $("#fSort").onchange=e=>{ S.f.sort=e.target.value; store("f",fSer()); renderList(); };
+  $("#fQ").oninput=e=>{ S.f.q=e.target.value; renderList(); };
+}
+$("#list").addEventListener("click",ev=>{ const r=ev.target.closest(".row"); if(r) openCase(+r.dataset.i); });
+function fSer(){ return {les:S.f.les, sort:S.f.sort}; }
+
+/* ============================== toolbar ============================== */
+function segs(id, opts, get, set){
+  const box=$(id); box.innerHTML="";
+  opts.forEach(([v,t])=>{ const b=el("button",{},t); b.dataset.v=v; b.onclick=()=>{ set(v); sync(); }; box.append(b); });
+  const sync=()=>box.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===get()));
+  sync(); return sync;
+}
+function buildToolbar(){
+  const sv=segs("#tView",[["fused","Fused"],["pet","PET"],["ct","CT"]],()=>S.view,v=>{ S.view=v; store("view",v); buildPanels(); update(); });
+  const sm=segs("#tMask",[["off","off"],["outline","outline"],["fill","fill"]],()=>S.mask,v=>{ S.mask=v; store("mask",v); update(); });
+  S.syncView=sv; S.syncMask=sm;
+  $("#tCmap").onchange=e=>{ S.cmap=e.target.value; store("cmap",S.cmap); update(); };
+  $("#tPhi").oninput=e=>{ S.phi=+e.target.value; store("phi",S.phi); update(); };
+  $("#tCt").onchange=e=>{ [S.clo,S.chi]=e.target.value.split(",").map(Number); update(); };
+  $("#tZoom").oninput=e=>{ S.zoom=+e.target.value; syncZoom(); recentre(); update(); };
+  $("#tAlpha").oninput=e=>{ S.alpha=+e.target.value; update(); };
+  $("#tCond").onchange=e=>setCond(e.target.value);
+  $("#tCompare").onclick=()=>toggleCompare();
+  $("#tDlim").oninput=e=>{ S.dlim=+e.target.value; $("#vDlim").textContent="±"+S.dlim.toFixed(2); update(); };
+  $("#tClip").onchange=e=>{ S.clip=e.target.checked; update(); };
+  $("#tFlip").onchange=e=>{ S.flip=e.target.checked; update(); };
+  $("#tPhi").value=S.phi; $("#tCmap").value=S.cmap;
+}
+document.addEventListener("keydown",ev=>{
+  if(/INPUT|SELECT|TEXTAREA/.test(ev.target.tagName) && ev.target.type!=="range" && ev.target.type!=="checkbox") return;
+  if(ev.ctrlKey||ev.metaKey||ev.altKey) return;
+  const k=ev.key;
+  if(k==="ArrowUp"||k==="ArrowDown"){ ev.preventDefault(); setIdx("ax",S.z+(k==="ArrowDown"?1:-1)*(ev.shiftKey?10:1)); update(); }
+  else if(k==="[") stepCase(-1); else if(k==="]") stepCase(1);
+  else if(k==="n") gotoLesion(S.lesSel+1); else if(k==="p") gotoLesion(S.lesSel-1);
+  else if(k==="m"){ const o=["off","outline","fill"]; S.mask=o[(o.indexOf(S.mask)+1)%3]; S.syncMask(); update(); }
+  else if(k==="f"){ const o=["fused","pet","ct"]; S.view=o[(o.indexOf(S.view)+1)%3]; S.syncView(); buildPanels(); update(); }
+  else if(k==="c"){ const names=S.conds.map(c=>c.name); setCond(names[(names.indexOf(S.cond)+1)%names.length]); }
+  else if(k==="x") toggleCompare();
+  else if(k==="l"){ S.flip=!S.flip; $("#tFlip").checked=S.flip; update(); }
+});
+
+/* ============================== perturbation gallery ============================== */
+let galPoll=0;
+function buildGallerySkeleton(){
+  segs("#gCh",[["pet","PET"],["ct","CT"],["fused","Fused"]],()=>S.gch,v=>{ S.gch=v; galleryUpdate(true); });
+  segs("#gPl",[["ax","Axial"],["co","Coronal"]],()=>S.gpl,v=>{ S.gpl=v; const [X,Y,Z]=shape(); $("#gSlice").max=(v==="ax"?Z:Y)-1; $("#gSlice").value=v==="ax"?S.z:S.y; galleryUpdate(true); });
+  $("#gSlice").oninput=e=>{ setIdx(S.gpl, +e.target.value); galleryUpdate(); };
+  $("#gAll").onclick=startAll;
+  $("#gZoom").oninput=e=>{ S.zoom=+e.target.value; syncZoom(); recentre(); galleryUpdate(); };
+}
+function galleryUpdate(rebuild){
+  if(!S.meta) return;
+  const g=$("#gal"); const need = rebuild || g.children.length!==S.conds.length;
+  const idx=idxOf(S.gpl); $("#gSlice").value=idx; $("#gSliceV").textContent=`${idx+1}/${S.gpl==="ax"?shape()[2]:shape()[1]}`;
+  if(need){
+    g.innerHTML="";
+    S.conds.forEach(c=>{
+      const [pw,ph]=physOf(S.gpl);
+      const t=el("div",{class:"tile","data-n":c.name});
+      t.innerHTML=`<div class="im" style="aspect-ratio:${pw}/${ph}"><img alt=""><div class="ph"></div></div><div class="cap"><b>${c.name}</b><span>${c.family==="clean"?"":"level "+c.level}</span></div>`;
+      t.onclick=async()=>{ await setCond(c.name); if(c.name!=="clean" && !S.compare) toggleCompare(true); switchTab("viewer"); };
+      g.append(t);
+    });
+  }
+  S.conds.forEach(c=>{
+    const t=g.querySelector(`.tile[data-n="${CSS.escape(c.name)}"]`), img=t.querySelector("img"), ph=t.querySelector(".ph");
+    t.classList.toggle("cur",c.name===S.cond);
+    if(S.cached.includes(c.name)){
+      const q=new URLSearchParams({i:S.i,plane:S.gpl,idx,cond:c.name,view:S.gch==="fused"?"fused":S.gch,cmap:S.cmap,phi:S.phi,clo:S.clo,chi:S.chi,alpha:S.alpha,mask:S.mask,clip:1,flip:S.flip?1:0,g:S.gen});
+      const u="/slice?"+q; if(img.dataset.u!==u){ img.dataset.u=u; img.src=u; } img.style.display="block"; ph.textContent="";
+      const [cols,rows]=dimsOf(S.gpl), [cc,cr]=toPix(S.gpl,S.cen), sw=cols/S.zoom, sh=rows/S.zoom;
+      const sx=clamp(cc+0.5-sw/2,0,cols-sw), sy=clamp(cr+0.5-sh/2,0,rows-sh);
+      img.style.width=(100*S.zoom)+"%"; img.style.height=(100*S.zoom)+"%";
+      img.style.left=(-sx/cols*100*S.zoom)+"%"; img.style.top=(-sy/rows*100*S.zoom)+"%";
+    } else { img.style.display="none"; ph.textContent="not computed yet — click to compute, or use “Compute all”"; }
+  });
+}
+async function startAll(){
+  try{ await api("/api/cond_all?i="+S.i); }catch(e){ toast(e.message); return; }
+  clearInterval(galPoll);
+  galPoll=setInterval(async()=>{
+    try{
+      const j=await api("/api/cond_status?i="+S.i);
+      S.cached=j.cached_conds; fillCondSelect();
+      $("#gProg").textContent = j.running? `computing ${j.current} (${j.done}/${j.total})…` : (j.error? "error: "+j.error : "all conditions ready");
+      galleryUpdate();
+      if(!j.running){ clearInterval(galPoll); }
+    }catch(e){ clearInterval(galPoll); }
+  },1500);
+}
+
+/* ============================== overview charts ============================== */
+const tip=$("#tip");
+function showTip(ev,html){ tip.innerHTML=html; tip.style.display="block"; tip.style.left=Math.min(ev.clientX+14,innerWidth-220)+"px"; tip.style.top=(ev.clientY+14)+"px"; }
+function hideTip(){ tip.style.display="none"; }
+const SERIES_COL = {train:"#3987e5", val:"#d95926", test:"#199e70"};
+function niceMax(v){ const p=Math.pow(10,Math.floor(Math.log10(Math.max(v,1)))); for(const m of [1,2,2.5,5,10]) if(m*p>=v) return m*p; return 10*p; }
+
+function stackedBars(cats, series, opts={}){
+  // vertical stacked bars; series=[{name,color,vals}]
+  const W=560,H=250,m={l:40,r:8,t:8,b:46}, iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const tot=cats.map((_,i)=>series.reduce((a,s)=>a+s.vals[i],0));
+  const ymax=niceMax(Math.max(...tot,1));
+  const bw=iw/cats.length;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
+  for(let t=0;t<=4;t++){ const v=ymax*t/4, y=m.t+ih-ih*t/4; s+=`<line class="grid" x1="${m.l}" x2="${W-m.r}" y1="${y}" y2="${y}"/><text x="${m.l-6}" y="${y+4}" text-anchor="end">${Math.round(v)}</text>`; }
+  cats.forEach((c,i)=>{
+    let acc=0; const x=m.l+i*bw+bw*0.14, w=bw*0.72;
+    series.forEach((se,k)=>{
+      const v=se.vals[i]; if(!v) return;
+      const h=ih*v/ymax, y=m.t+ih-ih*(acc+v)/ymax;
+      s+=`<rect x="${x}" y="${y+1}" width="${w}" height="${Math.max(h-2,1)}" rx="${k===series.length-1?3:0}" fill="${se.color}" data-t="<b>${c}</b><br>${se.name}: ${v}" />`;
+      acc+=v;
+    });
+    s+=`<text x="${x+w/2}" y="${H-m.b+16}" text-anchor="middle">${c}</text>`;
+  });
+  s+=`<text x="${m.l+iw/2}" y="${H-6}" text-anchor="middle">${opts.xlabel||""}</text></svg>`;
+  return s;
+}
+function hbars(cats, series){
+  const W=560,rowH=34,m={l:110,r:16,t:6,b:24}, H=m.t+m.b+rowH*cats.length, iw=W-m.l-m.r;
+  const tot=cats.map((_,i)=>series.reduce((a,s)=>a+s.vals[i],0)), xmax=niceMax(Math.max(...tot,1));
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
+  for(let t=0;t<=4;t++){ const x=m.l+iw*t/4; s+=`<line class="grid" x1="${x}" x2="${x}" y1="${m.t}" y2="${H-m.b}"/><text x="${x}" y="${H-8}" text-anchor="middle">${Math.round(xmax*t/4)}</text>`; }
+  cats.forEach((c,i)=>{
+    let acc=0; const y=m.t+i*rowH+6, h=rowH-12;
+    s+=`<text x="${m.l-8}" y="${y+h/2+4}" text-anchor="end">${c}</text>`;
+    series.forEach((se,k)=>{ const v=se.vals[i]; if(!v) return; const x=m.l+iw*acc/xmax, w=iw*v/xmax;
+      s+=`<rect x="${x+1}" y="${y}" width="${Math.max(w-2,1)}" height="${h}" rx="${k===series.length-1?3:0}" fill="${se.color}" data-t="<b>${c}</b><br>${se.name}: ${v}"/>`; acc+=v; });
+  });
+  return s+"</svg>";
+}
+function legend(series){ return `<div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${s.name}</span>`).join("")}</div>`; }
+function tableOf(cats, series, first){
+  return `<table class="dt"><tr><th>${first}</th>${series.map(s=>`<th>${s.name}</th>`).join("")}</tr>`+
+    cats.map((c,i)=>`<tr><td>${c}</td>${series.map(s=>`<td>${s.vals[i]}</td>`).join("")}</tr>`).join("")+"</table>";
+}
+function card(title, sub, chartHtml, tableHtml, series){
+  const d=el("div",{class:"card"});
+  d.innerHTML=`<div class="hd"><div><h2>${title}</h2><p>${sub}</p></div><button class="tg">Table</button></div>${legend(series)}<div class="ch">${chartHtml}</div><div class="tb" style="display:none">${tableHtml}</div>`;
+  const b=d.querySelector(".tg"), ch=d.querySelector(".ch"), tb=d.querySelector(".tb");
+  b.onclick=()=>{ const t=tb.style.display==="none"; tb.style.display=t?"block":"none"; ch.style.display=t?"none":"block"; b.textContent=t?"Chart":"Table"; };
+  d.querySelectorAll("rect[data-t]").forEach(r=>{ r.addEventListener("mousemove",e=>showTip(e,r.dataset.t)); r.addEventListener("mouseleave",hideTip); });
+  return d;
+}
+function buildOverview(){
+  const C=S.cases, root=$("#over"); root.innerHTML="";
+  if(!C.length){ root.innerHTML='<p style="color:var(--muted)">No studies loaded yet.</p>'; return; }
+  const known=C.filter(c=>c.lesion_voxels!==null), pos=known.filter(c=>c.lesion_voxels>0);
+  const med=a=>{ const s=[...a].sort((x,y)=>x-y); return s.length?s[Math.floor(s.length/2)]:0; };
+  if(known.length<C.length) root.append(el("p",{style:"color:var(--muted);margin:0 0 12px"},
+    `Lesion volumes are still being measured in the background (${known.length.toLocaleString()} of ${C.length.toLocaleString()} studies so far). Charts update as results arrive.`));
+  const k=el("div",{class:"kpis"});
+  [["Studies",C.length],["Patients",new Set(C.map(c=>c.patient_id)).size],["Lesion-positive (mask)",pos.length],["Lesion-free (mask)",known.length-pos.length],["Median lesion volume",med(pos.map(c=>c.lesion_ml)).toFixed(1)+" mL"]]
+    .forEach(([t,v])=>k.append(el("div",{class:"kpi"},`<small>${t}</small><b>${typeof v==="number"?v.toLocaleString():v}</b>`)));
+  root.append(k);
+  const splits=["train","val","test","none"].filter(s=>C.some(c=>c.split===s)), ser=(vals)=>splits.map(s=>({name:s,color:SERIES_COL[s]||"#8a94a3",vals:vals(s)}));
+  const cards=el("div",{class:"cards"}); root.append(cards);
+  // lesion volume histogram
+  const edges=[0,1,3,10,30,100,300,1000,Infinity], names=["<1","1–3","3–10","10–30","30–100","100–300","300–1k",">1k"];
+  const hist=s=>names.map((_,b)=>pos.filter(c=>c.split===s&&c.lesion_ml>=edges[b]&&c.lesion_ml<edges[b+1]).length);
+  let se=ser(hist);
+  cards.append(card("Lesion volume per study","Studies with a non-empty mask, by total lesion volume (mL).",stackedBars(names,se,{xlabel:"lesion volume (mL)"}),tableOf(names,se,"mL"),se));
+  // split composition (only when the data came with a split)
+  if(S.hasSplits){
+    const cat2=splits;
+    const se2=[{name:"with lesion",color:"#00b8d4",vals:cat2.map(s=>known.filter(c=>c.split===s&&c.lesion_voxels>0).length)},
+               {name:"lesion-free",color:"#8a94a3",vals:cat2.map(s=>known.filter(c=>c.split===s&&c.lesion_voxels===0).length)}];
+    cards.append(card("Studies per split","Studies by split (from splits.json) and mask status.",stackedBars(cat2,se2,{xlabel:"split"}),tableOf(cat2,se2,"split"),se2));
+  }
+  // diagnosis vs mask (only when diagnosis metadata was found)
+  if(S.hasDx){
+    const dxs=[...new Set(C.map(c=>c.diagnosis))].sort();
+    const se3=[{name:"mask has lesion",color:"#00b8d4",vals:dxs.map(d=>known.filter(c=>c.diagnosis===d&&c.lesion_voxels>0).length)},
+               {name:"mask empty",color:"#8a94a3",vals:dxs.map(d=>known.filter(c=>c.diagnosis===d&&c.lesion_voxels===0).length)}];
+    cards.append(card("Diagnosis label vs mask","The metadata diagnosis and the mask disagree for some studies; the mask is used as ground truth.",hbars(dxs,se3),tableOf(dxs,se3,"diagnosis"),se3));
+  }
+  // scan length
+  const nzs=C.map(c=>c.nz).filter(v=>v!==null);
+  if(nzs.length){
+    const lo=Math.floor(Math.min(...nzs)/50)*50, hi=Math.ceil(Math.max(...nzs)/50)*50+50;
+    const bins=[]; for(let a=lo;a<hi;a+=50) bins.push(a);
+    const bn=bins.map(a=>`${a}`);
+    const se4=ser(s=>bins.map(a=>C.filter(c=>c.split===s&&c.nz!==null&&c.nz>=a&&c.nz<a+50).length));
+    cards.append(card("Scan length","Axial slices per study (50-slice bins).",stackedBars(bn,se4,{xlabel:"axial slices (bin start)"}),tableOf(bn,se4,"slices"),se4));
+  }
+}
+
+/* ============================== tabs + boot ============================== */
+function switchTab(t){
+  S.tab=t; document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  document.querySelectorAll(".tab").forEach(s=>s.classList.toggle("on",s.id==="tab-"+t));
+  if(t==="pert"){ if(S.meta){ $("#gSlice").max=(S.gpl==="ax"?shape()[2]:shape()[1])-1; galleryUpdate(true); } }
+  if(t==="viewer"){ panels.forEach(draw); }
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+window.addEventListener("resize",()=>panels.forEach(draw));
+
+/* ---- loading a folder / files ---- */
+let idxPoll=0;
+function statusLine(init){
+  const ix=init.indexing||{};
+  $("#status").textContent = init.cases.length ? `${init.cases.length.toLocaleString()} studies · ${init.root}` : "no data loaded";
+  const bar=$("#idxbar");
+  if(ix.running){ bar.style.display="block"; bar.textContent=`Measuring lesion volumes in the background: ${ix.done.toLocaleString()} / ${ix.total.toLocaleString()}`; }
+  else bar.style.display="none";
+}
+function pollIndexing(){
+  clearInterval(idxPoll);
+  idxPoll=setInterval(async()=>{
+    try{
+      const j=await api("/api/cases");
+      if(j.gen!==S.gen){ clearInterval(idxPoll); return; }
+      j.cases.forEach(n=>{ const c=S.cases[n.i]; if(c) Object.assign(c, n, {cached:n.cached||c.cached}); });
+      statusLine({cases:S.cases,root:S.root,indexing:j.indexing});
+      renderList();
+      if(S.tab==="over"||!j.indexing.running) buildOverview();
+      if(!j.indexing.running) clearInterval(idxPoll);
+    }catch(e){ clearInterval(idxPoll); }
+  },4000);
+}
+function applyInit(init, openFirst=true){
+  S.cases=init.cases; S.conds=init.conds; S.gen=init.gen; S.root=init.root; S.torch=init.torch;
+  S.i=null; S.row=null; S.meta=null; S.lesions=[]; S.cond="clean"; S.cached=["clean"]; S.compare=false;
+  $("#tCompare").classList.remove("on"); $("#gDiff").style.display="none";
+  statusLine(init);
+  buildFilters(); fillCondSelect(); renderList(); buildOverview(); buildPanels();
+  $("#info").textContent=""; $("#kv").innerHTML=""; $("#les").innerHTML=""; $("#lesSum").textContent=""; $("#warns").textContent="";
+  $("#gal").innerHTML="";
+  if(init.skipped) toast(`${init.skipped} incomplete stud${init.skipped>1?"ies were":"y was"} skipped (only a PET or only a CT file).`);
+  if(!S.cases.length) return;
+  if(openFirst){
+    const last=load("last:"+S.root,null);
+    openCase((last!==null && S.cases[last]) ? last : S.list[0] ? S.list[0].i : 0);
+  }
+  if(init.indexing && init.indexing.running) pollIndexing();
+}
+async function chooseSource(mode){
+  const btn = mode==="folder" ? $("#bFolder") : $("#bFiles");
+  btn.disabled=true;
+  busy(mode==="folder" ? "Choose a folder in the dialog window (it may be behind this window)…" : "Choose the NIfTI files in the dialog window (it may be behind this window)…");
+  try{
+    let r;
+    try{ r=await api("/api/pick?mode="+mode); }
+    catch(e){
+      if(!/dialog/i.test(e.message)) throw e;
+      unbusy();
+      const p=prompt("No file dialog is available here. Paste the folder path:");
+      if(!p) return;
+      busy("Scanning…"); r=await api("/api/load?path="+encodeURIComponent(p));
+    }
+    if(r.cancelled) return;
+    busy("Reading the study list…");
+    applyInit(await api("/api/init"));
+  }catch(e){ toast(e.message); }
+  finally{ unbusy(); btn.disabled=false; }
+}
+$("#bFolder").onclick=()=>chooseSource("folder");
+$("#bFiles").onclick=()=>chooseSource("files");
+
+(async function boot(){
+  try{
+    const init=await api("/api/init");
+    const f=load("f",null); if(f){ S.f.les=f.les||S.f.les; S.f.sort=f.sort||S.f.sort; }
+    S.view=load("view",S.view); S.mask=load("mask",S.mask); S.cmap=load("cmap",S.cmap); S.phi=load("phi",S.phi);
+    S.conds=init.conds;
+    buildToolbar(); buildGallerySkeleton();
+    applyInit(init);
+    if(!init.cases.length) toast("Nothing is loaded yet: click “Open folder…” (a whole dataset) or “Choose files…” (single studies).");
+    if(!init.torch) $("#gInfo").textContent="PyTorch is not installed, so the perturbation conditions are unavailable. Install it with: pip install torch (then restart the viewer). "+$("#gInfo").textContent;
+  }catch(e){ toast("Could not start: "+e.message); }
+})();
+</script>
+</body>
+</html>

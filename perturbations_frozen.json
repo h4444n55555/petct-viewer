@@ -1,0 +1,110 @@
+{
+  "fingerprint": "bca490f76304c743171fbe577b989b8ac75305e95a8a8e3e805bcbb528559c51",
+  "conditions": [
+    {
+      "name": "clean",
+      "kind": "clean",
+      "family": "clean",
+      "level": 0.0,
+      "target": ""
+    },
+    {
+      "name": "lowres_x1.5",
+      "kind": "lowres",
+      "family": "lowres",
+      "level": 1.5,
+      "target": ""
+    },
+    {
+      "name": "lowres_x2",
+      "kind": "lowres",
+      "family": "lowres",
+      "level": 2.0,
+      "target": ""
+    },
+    {
+      "name": "lowres_x3",
+      "kind": "lowres",
+      "family": "lowres",
+      "level": 3.0,
+      "target": ""
+    },
+    {
+      "name": "lowres_x4",
+      "kind": "lowres",
+      "family": "lowres",
+      "level": 4.0,
+      "target": ""
+    },
+    {
+      "name": "noise_pet_s0.05",
+      "kind": "noise",
+      "family": "noise_pet",
+      "level": 0.05,
+      "target": "pet"
+    },
+    {
+      "name": "noise_pet_s0.1",
+      "kind": "noise",
+      "family": "noise_pet",
+      "level": 0.1,
+      "target": "pet"
+    },
+    {
+      "name": "noise_pet_s0.2",
+      "kind": "noise",
+      "family": "noise_pet",
+      "level": 0.2,
+      "target": "pet"
+    },
+    {
+      "name": "noise_ct_s0.05",
+      "kind": "noise",
+      "family": "noise_ct",
+      "level": 0.05,
+      "target": "ct"
+    },
+    {
+      "name": "noise_ct_s0.1",
+      "kind": "noise",
+      "family": "noise_ct",
+      "level": 0.1,
+      "target": "ct"
+    },
+    {
+      "name": "noise_ct_s0.2",
+      "kind": "noise",
+      "family": "noise_ct",
+      "level": 0.2,
+      "target": "ct"
+    },
+    {
+      "name": "noise_both_s0.05",
+      "kind": "noise",
+      "family": "noise_both",
+      "level": 0.05,
+      "target": "both"
+    },
+    {
+      "name": "noise_both_s0.1",
+      "kind": "noise",
+      "family": "noise_both",
+      "level": 0.1,
+      "target": "both"
+    },
+    {
+      "name": "noise_both_s0.2",
+      "kind": "noise",
+      "family": "noise_both",
+      "level": 0.2,
+      "target": "both"
+    },
+    {
+      "name": "pet_removed",
+      "kind": "pet_removed",
+      "family": "pet_removal",
+      "level": 1.0,
+      "target": ""
+    }
+  ]
+}

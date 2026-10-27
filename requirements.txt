@@ -1,0 +1,9 @@
+numpy
+scipy
+nibabel>=5.0
+pillow
+matplotlib
+# Only needed for the perturbation conditions (low resolution, noise, PET removed).
+# Everything else in the viewer works without it. The CPU build is enough:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch
